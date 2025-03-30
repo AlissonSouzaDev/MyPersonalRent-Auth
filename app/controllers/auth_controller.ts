@@ -5,7 +5,7 @@ import hash from '@adonisjs/core/services/hash'
 
 export default class AuthController {
   // Método para autenticar um usuário
-  public async login({ request, auth, response }: HttpContext) {
+  async login({ request, auth, response }: HttpContext) {
     try {
       const { email, password } = request.only(['email', 'password'])
 
@@ -15,16 +15,23 @@ export default class AuthController {
       if (!user) {
         return response.unauthorized({ message: 'E-mail Inválido' })
       }
+
       // Verificar se a senha está correta
       const passwordVerified = await hash.verify(user.password, password)
       if (!passwordVerified) {
         return response.unauthorized({ message: 'Senha Inválida' })
       }
 
+      if (user.is_disabled) {
+        return response.unauthorized({
+          message: 'Usuário desabilitado. Por favor, contate um administrador.',
+        })
+      }
+
       await auth.use('web').login(user)
 
       // Retornar o token gerado
-      return response.status(200).json({
+      return response.ok({
         message: 'Login realizado com Sucesso.',
         user: {
           id: user.id,
@@ -34,10 +41,15 @@ export default class AuthController {
         },
       })
     } catch (error) {
-      return response.status(500).json({
+      return response.internalServerError({
         message: 'An error occurred during login. Please try again later.',
         error: error.message || 'Internal Server Error',
       })
     }
+  }
+
+  async logout({ auth, response }: HttpContext) {
+    await auth.use('web').logout()
+    return response.json({ message: 'Logout successful' })
   }
 }
